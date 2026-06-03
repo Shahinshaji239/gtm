@@ -46,9 +46,11 @@ const PhotoGallery = ({ photos }) => {
       }
 
       // Second attempt: Fallback to backend proxy (for watermarking or CORS bypass)
-      let mediaPath = url.includes('/media/') ? url.split('/media/')[1] : null;
-      if (mediaPath) {
-        mediaPath = mediaPath.split('?')[0]; // Strip S3 query parameters
+      let mediaPath = null;
+      if (url.includes('/event_photos/')) {
+        mediaPath = 'event_photos/' + url.split('/event_photos/')[1].split('?')[0];
+      } else if (url.includes('/media/')) {
+        mediaPath = url.split('/media/')[1].split('?')[0];
       }
       
       if (!mediaPath) {
