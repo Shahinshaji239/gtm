@@ -1,0 +1,157 @@
+# Face Detection Project Integration Guide
+
+This document outlines the complete setup required to run this project, including Docker configurations, backend (Django) setup, and frontend (React/Vite) setup.
+
+## Prerequisites
+- Node.js (v18+)
+- Python (3.10+)
+- Docker Desktop or Docker Engine & Docker Compose
+- Virtual Environment tool for Python
+
+---
+
+## 1. Docker Setup (Database & Redis)
+
+The project relies on PostgreSQL and Redis which are configured via `docker-compose.yml` in the `backend` directory.
+
+**To start the infrastructure services:**
+1. Open a terminal.
+2. Navigate to the backend directory:
+   ```bash
+   cd s:\Face_detection_work\backend
+   ```
+3. Run docker-compose:
+   ```bash
+   docker-compose up -d
+   ```
+This will start:
+- **PostgreSQL** on port `5432` (User: `myuser`, Password: `mypassword`, DB: `facedb`)
+- **Redis** on port `6379`
+
+---
+
+## 2. Backend Setup (Django)
+
+The backend is a Django application resting in the `backend` directory. We have just generated a `requirements.txt` from the active environment.
+
+**Steps to configure and run the backend:**
+1. Navigate to the backend directory:
+   ```bash
+   cd s:\Face_detection_work\backend
+   ```
+2. Create and activate a Virtual Environment if you haven't:
+   ```bash
+   # Create Virtual Env
+   python -m venv venv
+   
+   # Activate it (on Windows)
+   .\venv\Scripts\activate
+   ```
+3. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+4. Set up environment variables:
+   Copy `.env.example` to `.env` and fill the variables:
+   ```env
+   FRONTEND_URL=http://localhost:5173
+   DEFAULT_FROM_EMAIL=noreply@yourdomain.com
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_USER=your-email@gmail.com
+   SMTP_PASSWORD=your-app-password
+   SMTP_USE_TLS=true
+   SMTP_USE_SSL=false
+   ```
+5. Apply Migrations to PostgreSQL db:
+   ```bash
+   python manage.py migrate
+   ```
+6. Start the Celery worker (if applicable for face_recognition tasks relying on Redis):
+   ```bash
+   celery -A django_project worker -l INFO --pool=solo
+   ```
+7. Start the Django development server:
+   ```bash
+   python manage.py runserver
+   ```
+   *The backend will be available at `http://127.0.0.1:8000/`*
+
+---
+
+## 3. Frontend Setup (React/Vite)
+
+The frontend is a Vite + React application.
+
+**Steps to configure and run the frontend:**
+1. Open a new terminal.
+2. Navigate to the frontend directory:
+   ```bash
+   cd s:\Face_detection_work\frontend
+   ```
+3. Install dependencies:
+   ```bash
+   npm install
+   ```
+4. Start the frontend development server:
+   ```bash
+   npm run dev
+   ```
+   *The frontend will be available at `http://localhost:5173/`*
+
+---
+
+## 4. Production Deployment on a New Contabo Server
+
+To host this project on your new Contabo server for **Global Travel Market**, follow these deployment steps:
+
+### A. Point your DNS
+Point your subdomain (e.g., `event.scellentevents.com`) to the IP address of your new Contabo server using an `A` record in your DNS provider (e.g., Cloudflare, GoDaddy).
+
+### B. Environment Settings
+The project uses a root-level `.env` file for docker production variables.
+1. Check the `.env` file in the root of the project.
+2. Verify that `DOMAIN_NAME`, `FRONTEND_URL`, and `VITE_API_URL` point to your new client's domain name (e.g. `https://event.scellentevents.com`).
+3. Ensure `AWS_MEDIA_LOCATION` is set to `scellent_media` to keep uploaded photos isolated.
+
+### C. Build and Run containers
+In the root directory, run:
+```bash
+docker-compose -f docker-compose.prod.yml up -d --build
+```
+This starts:
+- Frontend on host port `8080`
+- Django backend on host port `8000`
+- Celery worker
+- Redis & PostgreSQL
+
+### D. Nginx Server Configuration (With SSL)
+1. Install Nginx and Certbot on your Contabo server:
+   ```bash
+   sudo apt update
+   sudo apt install nginx certbot python3-certbot-nginx
+   ```
+2. Copy `nginx-host.conf` to Nginx sites configuration:
+   ```bash
+   sudo cp nginx-host.conf /etc/nginx/sites-available/scellent-event.conf
+   sudo ln -s /etc/nginx/sites-available/scellent-event.conf /etc/nginx/sites-enabled/
+   ```
+3. Test Nginx and reload:
+   ```bash
+   sudo nginx -t
+   sudo systemctl reload nginx
+   ```
+4. Obtain a free SSL certificate from Let's Encrypt:
+   ```bash
+   sudo certbot --nginx -d event.scellentevents.com
+   ```
+   Certbot will automatically update the Nginx configuration to support HTTPS (on port 443).
+
+---
+
+## Summary of Commands to Run Daily (Local Development)
+1. `docker-compose up -d` (in `backend` directory to run PostgreSQL/Redis)
+2. `.\venv\Scripts\activate` and `python manage.py runserver` (in `backend` to run the Django server)
+3. `celery -A django_project worker -l info --pool=solo` (in `backend` for async face indexing)
+4. `npm run dev` (in `frontend` to run the Vite dev server)
+

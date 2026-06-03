@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-myuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mypassword}
+      POSTGRES_DB: ${POSTGRES_DB:-facedb}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    restart: always
+
+  backend:
+    build: ./backend
+    restart: always
+    environment:
+      - DATABASE_URL=postgres://${POSTGRES_USER:-myuser}:${POSTGRES_PASSWORD:-mypassword}@db:5432/${POSTGRES_DB:-facedb}
+      - POSTGRES_HOST=db
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_STORAGE_BUCKET_NAME=${AWS_STORAGE_BUCKET_NAME}
+      - AWS_MEDIA_LOCATION=${AWS_MEDIA_LOCATION:-scellent_media}
+      - USE_S3_MEDIA=${USE_S3_MEDIA:-true}
+      - ASYNC_FACE_INDEXING_ENABLED=true
+      - FRONTEND_URL=${FRONTEND_URL}
+    volumes:
+      - media_data:/app/media
+    depends_on:
+      - db
+      - redis
+    ports:
+      - "8000:8000"
+
+  celery_worker:
+    build: ./backend
+    restart: always
+    command: celery -A django_project worker --loglevel=info
+    environment:
+      - DATABASE_URL=postgres://${POSTGRES_USER:-myuser}:${POSTGRES_PASSWORD:-mypassword}@db:5432/${POSTGRES_DB:-facedb}
+      - POSTGRES_HOST=db
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_STORAGE_BUCKET_NAME=${AWS_STORAGE_BUCKET_NAME}
+      - AWS_MEDIA_LOCATION=${AWS_MEDIA_LOCATION:-scellent_media}
+      - USE_S3_MEDIA=${USE_S3_MEDIA:-true}
+      - ASYNC_FACE_INDEXING_ENABLED=true
+      - FRONTEND_URL=${FRONTEND_URL}
+    volumes:
+      - media_data:/app/media
+    depends_on:
+      - db
+      - redis
+      - backend
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: ${VITE_API_URL}
+    restart: always
+    ports:
+      - "8080:80"   # moved off port 80 — host Nginx handles 80/443
+
+volumes:
+  postgres_data:
+  media_data:
